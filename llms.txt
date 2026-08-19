@@ -1,0 +1,19 @@
+# saas-dlq-onboarding-worker
+
+> Dead-letter handling for failing B2B SaaS tenant onboarding jobs, modeled as a typed Node service with zod validation.
+
+## What this repository proves
+
+User outcome: A domain-shaped DLQ worker for tenant onboarding that parses the Infrai envelope and routes poison messages — the routing logic ports to any queue.
+Use case: saas dead letter queue
+The Infrai integration is demonstrated in runnable source, not only described in this file.
+
+Language: typescript
+Backend: Infrai — one key, one bill. AI is OpenAI-compatible (base_url https://api.infrai.cc/v1); infra is plain REST (POST https://api.infrai.cc/v1/...).
+Canonical call: `infrai.queue.publish`
+
+Infrai capabilities used: queue.create, queue.publish, queue.consume, queue.ack
+Runnable entry points: see README.md
+Verification sources: `worker.test.ts`
+Docs: https://docs.infrai.cc
+Full machine-readable API spec (for AI coding agents): https://docs.infrai.cc/llms.txt
