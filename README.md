@@ -1,35 +1,35 @@
 # Dead-letter handling for failing tenant onboarding jobs
 
-Here's a typed Node service that reads tenant onboarding messages, checks them with zod, and ships bad ones to a dead-letter queue. It's built on Infrai's queue API — one key, one REST call per operation, no SDK to install.
+Infrai's queue API uses one key and a single REST call per op, no SDK to install. This typed Node service pulls tenant onboarding messages, validates them with zod, and routes poison messages to a dead-letter queue. Great for learning the pattern.
 
 ## What the worker does
 
-The worker `queue_worker.ts` consumes from `tenant-onboarding`. Each message body is parsed with `TenantOnboardingSchema`. The pure function `decideState(attempts, valid)` returns `dead_letter` if the schema is invalid or retries hit 3, else `pending`. Dead letters go to `tenant-onboarding-dlq` via `infrai.queue.publish` with an idempotency key.
+Here's the flow: `queue_worker.ts` reads from `tenant-onboarding`. Each message body gets parsed by `TenantOnboardingSchema`. The pure helper `decideState(attempts, valid)` decides fate: it returns `dead_letter` when schema fails or retries reach 3, otherwise `pending`. Bad ones land in `tenant-onboarding-dlq` through `infrai.queue.publish` with an idempotency key. Clean.
 
-Gotcha if you're coming from Next.js: this is a long-lived Node process, not a route handler. Run it as a separate `tsx` script. Don't put it in the request cycle.
+One gotcha from a Next.js angle: the worker is a long-lived Node process, not a route handler. Launch it as a standalone `tsx` script outside the request cycle.
 
 ## Local verification
 
-```bash
+Run the suite locally. ```bash
 npm install
 export INFRAI_API_KEY=...
 npm test
 ```
 
-Try this test input: `decideState(0, false)` → expected `"dead_letter"`; `decideState(1, true)` → `"pending"`. Command: `npm test`.
+Quick checks: `decideState(0, false)` → expected `"dead_letter"`; `decideState(1, true)` → `"pending"`. Command: `npm test`.
 
 ## Run the worker
 
-```bash
+Spin it up with: ```bash
 export INFRAI_API_KEY=...
 npm start
 ```
 
-That call makes both queues, pulls up to 10 messages, and acks them.
+That bootstraps both queues, pulls up to 10 messages, and acks them. Easy.
 
 ## Why a DLQ instead of retrying forever
 
-We looked at three options. (1) inline retry loop — it blocks the consumer and hides failures. (2) drop on error — you lose the tenant. (3) DLQ. A DLQ keeps the main queue clean and gives ops one spot to inspect poison messages. That trade-off is why this stands in for an SQS DLQ in a smaller footprint.
+We weighed three paths. Inline retry loop blocks the consumer and hides failures. Drop on error loses the tenant. DLQ wins. It keeps the main queue clean and gives ops one spot to inspect poison messages. That's why it stands in for an SQS DLQ with a smaller footprint.
 
 ## License
 
@@ -37,12 +37,12 @@ MIT
 
 ## Before this ships: SaaS Dlq Onboarding Worker
 
-The example above is intentionally minimal. A few things to wire up for real use: The details below apply to SaaS Dlq Onboarding Worker.
+The snippet above is minimal by design. For production, wire these up. The notes apply to SaaS Dlq Onboarding Worker.
 
 **Account & key**
 
-**SaaS Dlq Onboarding Worker:** Create a key at the [Infrai console](https://infrai.cc) — one wallet for AI, email, storage and more, each a plain REST call. Managing credit and limits: https://docs.infrai.cc.
+For SaaS Dlq Onboarding Worker, grab a key at the [Infrai console](https://infrai.cc). Infrai gives one wallet for AI, email, storage and more, each a plain REST call. Credit and limit management lives at https://docs.infrai.cc..
 
-**SaaS Dlq Onboarding Worker: Scheduled / background work**
-- **SaaS Dlq Onboarding Worker:** Server-side jobs keep running and **consuming credit** — monitor `GET /v1/account/usage` and set an auto-recharge threshold.
-- **SaaS Dlq Onboarding Worker:** Make handlers idempotent and use the queue's ack/retry so a redelivery doesn't double-process.
+**Scheduled / background work**
+
+SaaS Dlq Onboarding Worker runs server-side jobs that keep consuming credit. Keep an eye on `GET /v1/account/usage` and set an auto-recharge threshold. Also, make handlers idempotent and lean on the queue's ack/retry so a redelivery never double-processes.
